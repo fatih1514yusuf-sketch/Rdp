@@ -1,0 +1,40 @@
+name: RDP
+
+on:
+  workflow_dispatch: # Supaya bisa dijalankan manual
+
+jobs:
+  build:
+    runs-on: windows-latest # Harus pakai Windows untuk RDP
+    
+    steps:
+    - name: Checkout Code (Opsional, tapi bagus)
+      uses: actions/checkout@v4
+      
+    - name: Enable RDP and Set User
+      run: |
+        # Mengaktifkan RDP di Windows Runner
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # Buat user baru (misal: runneradmin) dan set password
+        $Password = ConvertTo-SecureString -AsPlainText "PassKamu123" -Force # GANTI PASSWORD INI!
+        New-LocalUser -Name "runneradmin" -Password $Password -FullName "Admin RDP" -Description "User RDP Sementara" -Force
+        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+      shell: powershell # Pastikan menggunakan PowerShell
+
+    - name: Setup Tailscale
+      # Ini adalah bagian terpenting, menggunakan GitHub Action dari Tailscale
+      uses: tailscale/github-action@v2
+      with:
+        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }} # Secret kamu
+        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}       # Secret kamu
+        # ATAU bisa juga pakai: authkey: ${{ secrets.TS_AUTHKEY }}
+        tags: tag:github-rdp # Beri tag agar mudah diatur di Tailscale Admin
+
+    - name: Keep Alive
+      # Langkah ini mencegah workflow selesai dan mematikan RDP
+      run: |
+        Write-Host "RDP aktif dan terhubung ke Tailscale. Menunggu hingga 6 jam..."
+        Start-Sleep -Hours 5 # Beri waktu yang cukup (max 6 jam dari GitHub)
+      shell: powershell
